@@ -17,8 +17,34 @@ from concurrent.futures import ThreadPoolExecutor
 
 INDEX_URL = "https://im-imgs-bucket.oss-accelerate.aliyuncs.com/index.js"
 UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 Mobile Safari/604.1"
-PLAY_HOSTS = ["http://play.sportsteam53.com", "http://m.jw1104.com", "http://play.sportsteam356.com"]
+FALLBACK_HOSTS = ["http://play.sportsteam53.com", "http://m.jw1104.com", "http://play.sportsteam356.com"]
 TIMEOUT = 12
+HOME_URL = "https://m.jrs15.com/"
+_HOSTS_CACHE = {"hosts": None, "ts": 0}
+
+
+def get_play_hosts():
+    """线路 host 由站点按访客地区下发（首页内联 PLAY_HOSTS，base64），动态提取并缓存"""
+    import base64 as b64
+    now = time.time()
+    if _HOSTS_CACHE["hosts"] and now - _HOSTS_CACHE["ts"] < 300:
+        return _HOSTS_CACHE["hosts"]
+    hosts = []
+    try:
+        home = http(HOME_URL, timeout=10)
+        for m in re.finditer(r'(line\d+)\s*:\s*atob\("([A-Za-z0-9+/=]+)"\)', home):
+            try:
+                hosts.append(b64.b64decode(m.group(2)).decode("utf-8", "ignore").rstrip("/"))
+            except Exception:
+                pass
+    except Exception:
+        pass
+    hosts = [h if h.startswith("http") else "http://" + h for h in hosts]
+    if not hosts:
+        hosts = FALLBACK_HOSTS
+    _HOSTS_CACHE["hosts"] = hosts
+    _HOSTS_CACHE["ts"] = now
+    return hosts
 
 
 def http(url, timeout=TIMEOUT):
@@ -98,7 +124,7 @@ def build_live_txt(max_matches=60):
     def handle(mt):
         title = f"{mt['time']} {mt['home']}vs{mt['away']}"
         html = None
-        for host in PLAY_HOSTS:
+        for host in get_play_hosts():
             try:
                 html = http(f"{host}/play/steam{mt['playid']}.html", timeout=10)
                 if "data-play" in html:
@@ -107,11 +133,14 @@ def build_live_txt(max_matches=60):
                 continue
         chs = parse_play_page(html) if html else []
         if not chs:
+            if stats["fail"] == 0:
+                sample = (html or "EMPTY")[:150].replace("\n", " ")
+                print("DEBUG play page sample:", sample, file=sys.stderr)
             stats["fail"] += 1
             return None
         urls = []
         for ch in chs:
-            url = resolve_channel(PLAY_HOSTS[0], ch["provider"])
+            url = resolve_channel(get_play_hosts()[0], ch["provider"])
             if url:
                 urls.append(url)
         if not urls:
