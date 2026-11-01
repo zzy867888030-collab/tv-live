@@ -44,6 +44,7 @@ def get_play_hosts():
         hosts = FALLBACK_HOSTS
     _HOSTS_CACHE["hosts"] = hosts
     _HOSTS_CACHE["ts"] = now
+    print("DEBUG play hosts:", hosts, "home_size:", len(home) if home else 0, file=sys.stderr)
     return hosts
 
 
