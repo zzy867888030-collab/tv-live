@@ -38,13 +38,14 @@ def get_play_hosts():
             except Exception:
                 pass
     except Exception:
+        home = ""
         pass
     hosts = [h if h.startswith("http") else "http://" + h for h in hosts]
     if not hosts:
         hosts = FALLBACK_HOSTS
     _HOSTS_CACHE["hosts"] = hosts
     _HOSTS_CACHE["ts"] = now
-    print("DEBUG play hosts:", hosts, "home_size:", len(home) if home else 0, file=sys.stderr)
+    print("DEBUG play hosts:", hosts, "home_len:", len(home), file=sys.stderr)
     return hosts
 
 
